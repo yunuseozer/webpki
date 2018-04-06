@@ -133,7 +133,8 @@ pub use time::Time;
 /// probably best to just call `EndEntityCert::from` multiple times (before each
 /// operation) for the same DER-encoded ASN.1 certificate bytes.
 pub struct EndEntityCert<'a> {
-    inner: cert::Cert<'a>,
+    /// The Cert object
+    pub inner: cert::Cert<'a>,
 }
 
 impl <'a> EndEntityCert<'a> {
