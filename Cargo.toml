@@ -65,6 +65,7 @@ std = []
 [dependencies]
 ring = "0.13.2"
 untrusted = "0.6.2"
+base64 = "0.9.1"
 
 [dev-dependencies]
 base64 = "0.9.1"

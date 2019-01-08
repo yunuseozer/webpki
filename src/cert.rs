@@ -33,6 +33,7 @@ pub struct Cert<'a> {
     pub eku: Option<untrusted::Input<'a>>,
     pub name_constraints: Option<untrusted::Input<'a>>,
     pub subject_alt_name: Option<untrusted::Input<'a>>,
+    pub comments: Option<untrusted::Input<'a>>,
 }
 
 pub fn parse_cert<'a>(cert_der: untrusted::Input<'a>,
@@ -88,6 +89,7 @@ pub fn parse_cert_internal<'a>(
             eku: None,
             name_constraints: None,
             subject_alt_name: None,
+            comments: None,
         };
 
         // mozilla::pkix allows the extensions to be omitted. However, since
@@ -154,36 +156,47 @@ fn remember_extension<'a>(cert: &mut Cert<'a>, extn_id: untrusted::Input,
     // all policy-related stuff. We assume that the policy-related extensions
     // are not marked critical.
 
+    // Netscape comments 2.16.840.1.113730.1
+    static ID_COMMENTS: [u8; 9] =
+        [0x60, 0x86, 0x48, 0x01, 0x86, 0xF8, 0x42, 0x01, 0x0D];
+
     // id-ce 2.5.29
     static ID_CE: [u8; 2] = oid![2, 5, 29];
 
-    if extn_id.len() != ID_CE.len() + 1 ||
-       !extn_id.as_slice_less_safe().starts_with(&ID_CE) {
-        return Ok(Understood::No);
+    let out: &mut Option<untrusted::Input<'a>>;
+    if extn_id.as_slice_less_safe() == ID_COMMENTS {
+        out = &mut cert.comments;
+        *out = Some(value);
+        return Ok(Understood::Yes);
+    } else {
+        if extn_id.len() != ID_CE.len() + 1 ||
+           !extn_id.as_slice_less_safe().starts_with(&ID_CE) {
+            return Ok(Understood::No);
+        }
+
+        out = match *extn_id.as_slice_less_safe().last().unwrap() {
+            // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
+            // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
+            // and other common browsers do not check KeyUsage for end-entities,
+            // though it would be kind of nice to ensure that a KeyUsage without
+            // the keyEncipherment bit could not be used for RSA key exchange.
+            15 => { return Ok(Understood::Yes); },
+
+            // id-ce-subjectAltName 2.5.29.17
+            17 => &mut cert.subject_alt_name,
+
+            // id-ce-basicConstraints 2.5.29.19
+            19 => &mut cert.basic_constraints,
+
+            // id-ce-nameConstraints 2.5.29.30
+            30 => &mut cert.name_constraints,
+
+            // id-ce-extKeyUsage 2.5.29.37
+            37 => &mut cert.eku,
+
+            _ => { return Ok(Understood::No); }
+        };
     }
-
-    let out = match *extn_id.as_slice_less_safe().last().unwrap() {
-        // id-ce-keyUsage 2.5.29.15. We ignore the KeyUsage extension. For CA
-        // certificates, BasicConstraints.cA makes KeyUsage redundant. Firefox
-        // and other common browsers do not check KeyUsage for end-entities,
-        // though it would be kind of nice to ensure that a KeyUsage without
-        // the keyEncipherment bit could not be used for RSA key exchange.
-        15 => { return Ok(Understood::Yes); },
-
-        // id-ce-subjectAltName 2.5.29.17
-        17 => &mut cert.subject_alt_name,
-
-        // id-ce-basicConstraints 2.5.29.19
-        19 => &mut cert.basic_constraints,
-
-        // id-ce-nameConstraints 2.5.29.30
-        30 => &mut cert.name_constraints,
-
-        // id-ce-extKeyUsage 2.5.29.37
-        37 => &mut cert.eku,
-
-        _ => { return Ok(Understood::No); }
-    };
 
     match *out {
         Some(..) => {
