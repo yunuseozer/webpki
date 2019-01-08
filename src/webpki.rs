@@ -72,6 +72,8 @@ mod time;
 pub mod trust_anchor_util;
 
 mod verify_cert;
+#[cfg(feature = "std")]
+mod verify_sgx;
 
 pub use name::DNSNameRef;
 
@@ -245,6 +247,23 @@ impl <'a> EndEntityCert<'a> {
                             signature: untrusted::Input) -> Result<(), Error> {
         signed_data::verify_signature(signature_alg, self.inner.spki, msg,
                                       signature)
+    }
+
+    /// Verifies if this certificate carries a valid SGX attestation report in
+    /// the X509v3 Netscape comment extension.
+    ///
+    /// `supported_sig_algs` is the list of signature algorithms that are
+    /// trusted for use in certificate signatures; `time` is the time for which
+    /// the validation is effective (usually the current time).
+    ///
+    /// `verify` is a closure function that exposes the serialized attestation report
+    #[cfg(feature = "std")]
+    pub fn verify_is_valid_sgx_attestation_report<F>(&self,
+        supported_sig_algs: &[&SignatureAlgorithm], time: Time, verify: F)
+            -> Result<(), Error>
+            where F: FnOnce(&cert::Cert, untrusted::Input) -> Result<(), Error> {
+        verify_sgx::verify_is_valid_attestation_report(supported_sig_algs,
+            &self.inner, time, verify)
     }
 }
 
