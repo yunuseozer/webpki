@@ -14,6 +14,7 @@
 
 //! Utilities for efficiently embedding trust anchors in programs.
 
+use std::prelude::v1::*;
 use super::der;
 use crate::{
     cert::{certificate_serial_number, parse_cert_internal, Cert, EndEntityOrCA},
