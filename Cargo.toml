@@ -55,22 +55,26 @@ include = [
 
     "third-party/chromium/**/*",
 ]
+exclude = ["/sgx/*"]
 
 [lib]
 name = "webpki"
 path = "src/webpki.rs"
 
 [features]
-default = ["std", "trust_anchor_util"]
+default = ["std", "trust_anchor_util", "mesalock_sgx"]
 trust_anchor_util = ["std"]
-std = []
+std = ["mesalock_sgx"]
+mesalock_sgx = ["sgx_tstd"]
 
 [dependencies]
-ring = { version = "0.16.19", default-features = false, features = ["alloc"] }
+ring = { git = "https://github.com/mesalock-linux/ring-sgx", tag = "v0.16.5" }
 untrusted = "0.7.1"
+untrusted = "0.7.0"
+sgx_tstd = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 
 [dev-dependencies]
-base64 = "0.9.1"
+#base64 = "0.9.1"
 
 [profile.bench]
 opt-level = 3
