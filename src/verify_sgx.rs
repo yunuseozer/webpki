@@ -13,11 +13,12 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use cert::Cert;
-use time;
+use crate::cert::Cert;
+use crate::time;
+use crate::{EndEntityCert, TLSServerTrustAnchors, TrustAnchor, RSA_PKCS1_2048_8192_SHA256};
+use crate::{Error, SignatureAlgorithm};
+
 use untrusted;
-use {EndEntityCert, TLSServerTrustAnchors, TrustAnchor, RSA_PKCS1_2048_8192_SHA256};
-use {Error, SignatureAlgorithm};
 
 static IAS_CA_TRUST_ANCHOR: TLSServerTrustAnchors = TLSServerTrustAnchors(&[
     TrustAnchor {
@@ -52,19 +53,23 @@ where
 
         // 2. Base63 decode the signature and certfiicate
         let sig_buf = base64::decode(sig_input.as_slice_less_safe()).map_err(|_| Error::BadDER)?;
-        let sig_cert_buf = base64::decode_config(sig_cert_input.as_slice_less_safe(), base64::MIME)
-            .map_err(|_| Error::BadDER)?;
-        let sig = untrusted::Input::from(&sig_buf);
-        let sig_cert = EndEntityCert::from(untrusted::Input::from(&sig_cert_buf))?;
+        let sig_cert_buf =
+            base64::decode_config(sig_cert_input.as_slice_less_safe(), base64::STANDARD)
+                .map_err(|_| Error::BadDER)?;
+        let sig_cert = EndEntityCert::from(&sig_cert_buf)?;
 
         // 3. Verify if the report is properly signed
         sig_cert.verify_is_valid_tls_server_cert(
             supported_sig_algs,
             &IAS_CA_TRUST_ANCHOR,
-            &[untrusted::Input::from(ISA_CA_CERT)],
+            &[ISA_CA_CERT],
             time,
         )?;
-        sig_cert.verify_signature(&RSA_PKCS1_2048_8192_SHA256, report_input, sig)?;
+        sig_cert.verify_signature(
+            &RSA_PKCS1_2048_8192_SHA256,
+            report_input.as_slice_less_safe(),
+            &sig_buf,
+        )?;
 
         // 4. Invoke the closure function to process the report
         verify(cert, report_input)
